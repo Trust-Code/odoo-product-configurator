@@ -28,15 +28,26 @@ class ProductConfigDomain(models.Model):
     def compute_domain(self):
         """ Returns a list of domains defined on a product.config.domain_line_ids
             and all implied_ids"""
-        # TODO: Enable the usage of OR operators between domain lines and
-        # implied_ids
+        # TODO: Enable the usage of OR operators between implied_ids
+        # TODO: Add implied_ids sequence field to enforce order of operations
         # TODO: Prevent circular dependencies
         computed_domain = []
         for domain in self:
-            for line in domain.trans_implied_ids.mapped('domain_line_ids'):
+            lines = domain.trans_implied_ids.mapped('domain_line_ids').sorted()
+            for line in lines[:-1]:
+                if line.operator == 'or':
+                    computed_domain.append('|')
                 computed_domain.append(
-                    (line.attribute_id.id, line.condition, line.value_ids.ids)
+                    (line.attribute_id.id,
+                     line.condition,
+                     line.value_ids.ids)
                 )
+            # ensure 2 operands follow the last operator
+            computed_domain.append(
+                (lines[-1].attribute_id.id,
+                 lines[-1].condition,
+                 lines[-1].value_ids.ids)
+            )
         return computed_domain
 
     name = fields.Char(
@@ -68,6 +79,7 @@ class ProductConfigDomain(models.Model):
 
 class ProductConfigDomainLine(models.Model):
     _name = 'product.config.domain.line'
+    _order = 'sequence'
 
     def _get_domain_conditions(self):
         operators = [
@@ -80,8 +92,7 @@ class ProductConfigDomainLine(models.Model):
     def _get_domain_operators(self):
         andor = [
             ('and', 'And'),
-            # ('or', 'Or')
-            # TODO: Not implemented in domain computation yet
+            ('or', 'Or'),
         ]
 
         return andor
@@ -115,6 +126,12 @@ class ProductConfigDomainLine(models.Model):
         string='Operators',
         default='and',
         required=True
+    )
+
+    sequence = fields.Integer(
+        string="Sequence",
+        default=1,
+        help="Set the order of operations for evaluation domain lines"
     )
 
 
@@ -174,8 +191,9 @@ class ProductConfigLine(models.Model):
             value_attributes = line.value_ids.mapped('attribute_id')
             if value_attributes != line.attribute_line_id.attribute_id:
                 raise ValidationError(
-                    "Values must belong to the attribute of the corresponding "
-                    "attribute_line set on the configuration line"
+                    _("Values must belong to the attribute of the "
+                      "corresponding attribute_line set on the configuration "
+                      "line")
                 )
 
 
@@ -272,8 +290,8 @@ class ProductConfigSession(models.Model):
     _name = 'product.config.session'
 
     @api.multi
-    @api.depends('value_ids')
-    def _get_cfg_price(self):
+    @api.depends('value_ids', 'custom_value_ids', 'custom_value_ids.value')
+    def _compute_cfg_price(self):
         for session in self:
             custom_vals = session._get_custom_vals_dict()
             price = session.product_tmpl_id.get_cfg_price(
@@ -316,7 +334,7 @@ class ProductConfigSession(models.Model):
         string='Custom Values'
     )
     price = fields.Float(
-        compute='_get_cfg_price',
+        compute='_compute_cfg_price',
         string='Price',
         store=True,
     )

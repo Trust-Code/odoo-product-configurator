@@ -83,9 +83,12 @@ class ProductAttribute(models.Model):
         'this attribute?'
     )
 
-    uom_id = fields.Many2one('product.uom', string='Unit of Measure')
+    uom_id = fields.Many2one(
+        comodel_name='product.uom',
+        string='Unit of Measure'
+    )
 
-    image = fields.Binary('Image')
+    image = fields.Binary(string='Image')
 
     # TODO prevent the same attribute from being defined twice on the
     # attribute lines
@@ -104,16 +107,28 @@ class ProductAttribute(models.Model):
     def validate_custom_val(self, val):
         """ Pass in a desired custom value and ensure it is valid.
         Probaly should check type, etc, but let's assume fine for the moment.
-        """ 
+        """
         self.ensure_one()
         if self.custom_type in ('int', 'float'):
-            if self.min_val or self.max_val:
-                val = literal_eval(val)
-                if val < self.min_val or val > self.max_val:
-                    raise ValidationError(
-                        _("Selected custom value '%s' must be between %s and %s" %
-                          (self.name, self.min_val, self.max_val))
-                    )
+            minv = self.min_val
+            maxv = self.max_val
+            val = literal_eval(val)
+            if minv and maxv and (val < minv or val > maxv):
+                raise ValidationError(
+                    _("Selected custom value '%s' must be between %s and %s"
+                        % (self.name, self.min_val, self.max_val))
+                )
+            elif minv and val < minv:
+                raise ValidationError(
+                    _("Selected custom value '%s' must be at least %s" %
+                        (self.name, self.min_val))
+                )
+            elif maxv and val > maxv:
+                raise ValidationError(
+                    _("Selected custom value '%s' must be lower than %s" %
+                        (self.name, self.max_val + 1))
+                )
+
 
 class ProductAttributeLine(models.Model):
     _inherit = 'product.attribute.line'
@@ -195,8 +210,8 @@ class ProductAttributeValue(models.Model):
             val_ids = set(tmpl_vals.ids)
             if preset_val_ids:
                 val_ids -= set(arg[2])
-            val_ids = [v for v in val_ids if product_tmpl.value_available(
-                v, preset_val_ids)]
+            val_ids = product_tmpl.values_available(
+                val_ids, preset_val_ids)
             new_args.append(('id', 'in', val_ids))
             mono_tmpl_lines = product_tmpl.attribute_line_ids.filtered(
                 lambda l: not l.multi)
@@ -222,7 +237,7 @@ class ProductAttributeValueCustom(models.Model):
 
     @api.multi
     @api.depends('attribute_id', 'attribute_id.uom_id')
-    def compute_val_name(self):
+    def _compute_val_name(self):
         for attr_val_custom in self:
             uom = attr_val_custom.attribute_id.uom_id.name
             attr_val_custom.name = '%s%s' % (attr_val_custom.value, uom or '')
@@ -232,7 +247,7 @@ class ProductAttributeValueCustom(models.Model):
     name = fields.Char(
         string='Name',
         readonly=True,
-        compute="compute_val_name",
+        compute="_compute_val_name",
         store=True,
     )
     product_id = fields.Many2one(

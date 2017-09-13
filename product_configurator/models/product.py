@@ -65,10 +65,8 @@ class ProductTemplate(models.Model):
 
         for cfg_line in self.config_step_line_ids:
             for attr_line in cfg_line.attribute_line_ids:
-                available_vals = any(
-                    val for val in attr_line.value_ids if
-                    self.value_available(val.id, value_ids)
-                )
+                available_vals = self.values_available(attr_line.value_ids.ids,
+                                                       value_ids)
                 # TODO: Refactor when adding restriction to custom values
                 if available_vals or attr_line.custom:
                     open_step_lines |= cfg_line
@@ -128,7 +126,7 @@ class ProductTemplate(models.Model):
         price set to them"""
         value_obj = self.env['product.attribute.value'].with_context({
             'pricelist': pricelist.id})
-        values = value_obj.browse(value_ids).filtered(
+        values = value_obj.sudo().browse(value_ids).filtered(
             lambda x: x.product_id.price)
         return values
 
@@ -221,31 +219,43 @@ class ProductTemplate(models.Model):
 
             :returns: product.product recordset of products matching domain
         """
+        self.ensure_one()
+
         if custom_values is None:
             custom_values = {}
         attr_obj = self.env['product.attribute']
-        for product_tmpl in self:
-            domain = [('product_tmpl_id', '=', product_tmpl.id)]
 
-            for value_id in value_ids:
-                domain.append(('attribute_value_ids', '=', value_id))
+        domain = [('product_tmpl_id', '=', self.id)]
 
-            attr_search = attr_obj.search([
-                ('search_ok', '=', True),
-                ('custom_type', 'not in', attr_obj._get_nosearch_fields())
-            ])
+        for value_id in value_ids:
+            domain.append(('attribute_value_ids', '=', value_id))
 
-            for attr_id, value in custom_values.iteritems():
-                if attr_id not in attr_search.ids:
-                    domain.append(
-                        ('value_custom_ids.attribute_id', '!=', int(attr_id)))
-                else:
-                    domain.append(
-                        ('value_custom_ids.attribute_id', '=', int(attr_id)))
-                    domain.append(('value_custom_ids.value', '=', value))
+        attr_search = attr_obj.search([
+            ('search_ok', '=', True),
+            ('custom_type', 'not in', attr_obj._get_nosearch_fields())
+        ])
 
-            products = self.env['product.product'].search(domain)
-            return products
+        for attr_id, value in custom_values.iteritems():
+            if attr_id not in attr_search.ids:
+                domain.append(
+                    ('value_custom_ids.attribute_id', '!=', int(attr_id)))
+            else:
+                domain.append(
+                    ('value_custom_ids.attribute_id', '=', int(attr_id)))
+                domain.append(('value_custom_ids.value', '=', value))
+
+        products = self.env['product.product'].search(domain)
+
+        # At this point, we might have found products with all of the passed
+        # in values, but it might have more attributes!  These are NOT
+        # matches
+        more_attrs = products.filtered(
+            lambda p:
+            len(p.attribute_value_ids) != len(value_ids) or
+            len(p.value_custom_ids) != len(custom_values)
+            )
+        products -= more_attrs
+        return products
 
     def get_config_image_obj(self, value_ids, size=None):
         """
@@ -276,19 +286,22 @@ class ProductTemplate(models.Model):
 
             :returns: list of custom values compatible with write and create
         """
-        binary_attribute_ids = self.env['product.attribute'].search([
+        attr_obj = self.env['product.attribute']
+        binary_attribute_ids = attr_obj.search([
             ('custom_type', '=', 'binary')]).ids
 
         custom_lines = []
 
         for key, val in custom_values.iteritems():
             custom_vals = {'attribute_id': key}
+            # TODO: Is this extra check neccesairy as we already make
+            # the check in validate_configuration?
+            attr_obj.browse(key).validate_custom_val(val)
             if key in binary_attribute_ids:
                 custom_vals.update({
                     'attachment_ids': [(6, 0, val.ids)]
                 })
             else:
-                self.env['product.attribute'].browse(key).validate_custom_val(val)
                 custom_vals.update({'value': val})
             custom_lines.append((0, 0, custom_vals))
         return custom_lines
@@ -318,19 +331,28 @@ class ProductTemplate(models.Model):
         }
 
         if custom_values:
-            vals.update({'value_custom_ids': self.encode_custom_values(custom_values)})
+            vals.update({
+                'value_custom_ids': self.encode_custom_values(custom_values)
+            })
 
         return vals
 
     @api.multi
     def create_variant(self, value_ids, custom_values=None):
-        """ Creates a product.variant with the attributes passed via value_ids
-        and custom_values
+        """Wrapper method for backward compatibility"""
+        # TODO: Remove in newer versions
+        return self.create_get_variant(
+            value_ids=value_ids, custom_values=custom_values)
+
+    @api.multi
+    def create_get_variant(self, value_ids, custom_values=None):
+        """ Creates a new product variant with the attributes passed via value_ids
+        and custom_values or retrieves an existing one based on search result
 
             :param value_ids: list of product.attribute.values ids
             :param custom_values: dict {product.attribute.id: custom_value}
 
-            :returns: product.product recordset of products matching domain
+            :returns: new/existing product.product recordset
 
         """
         if custom_values is None:
@@ -338,42 +360,84 @@ class ProductTemplate(models.Model):
         valid = self.validate_configuration(value_ids, custom_values)
         if not valid:
             raise ValidationError(_('Invalid Configuration'))
-        # TODO: Add all custom values to order line instead of product
+
+        duplicates = self.search_variant(value_ids,
+                                         custom_values=custom_values)
+
+        # At the moment, I don't have enough confidence with my understanding
+        # of binary attributes, so will leave these as not matching...
+        # In theory, they should just work, if they are set to "non search"
+        # in custom field def!
+        # TODO: Check the logic with binary attributes
+        if custom_values:
+            value_custom_ids = self.encode_custom_values(custom_values)
+            if any('attachment_ids' in cv[2] for cv in value_custom_ids):
+                duplicates = False
+
+        if duplicates:
+            return duplicates[0]
+
         vals = self.get_variant_vals(value_ids, custom_values)
         variant = self.env['product.product'].create(vals)
 
         return variant
 
-    # TODO: Refactor so multiple values can be checked at once
-    # also a better method for building the domain using the logical
-    # operators is required
-    @api.multi
-    def value_available(self, attr_val_id, value_ids):
-        """Determines whether the attr_value from the product_template
-            is available for selection given the configuration ids and the
-            dependencies set on the product template
-
-            :param attr_val_id: int of product.attribute.value object
-            :param value_ids: list of attribute value ids
-
-            :returns: True or False representing availability
-
-        """
-        self.ensure_one()
-        config_lines = self.config_line_ids.filtered(
-            lambda l: attr_val_id in l.value_ids.ids
-        )
-
-        domains = config_lines.mapped('domain_id').compute_domain()
-
-        for domain in domains:
-            if domain[1] == 'in':
-                if not set(domain[2]) & set(value_ids):
-                    return False
+    def validate_domains_against_sels(self, domains, sel_val_ids):
+        # process domains as shown in this wikipedia pseudocode:
+        # https://en.wikipedia.org/wiki/Polish_notation#Order_of_operations
+        stack = []
+        for domain in reversed(domains):
+            if type(domain) == tuple:
+                # evaluate operand and push to stack
+                if domain[1] == 'in':
+                    if not set(domain[2]) & set(sel_val_ids):
+                        stack.append(False)
+                        continue
+                else:
+                    if set(domain[2]) & set(sel_val_ids):
+                        stack.append(False)
+                        continue
+                stack.append(True)
             else:
-                if set(domain[2]) & set(value_ids):
-                    return False
-        return True
+                # evaluate operator and previous 2 operands
+                # compute_domain() only inserts 'or' operators
+                # compute_domain() enforces 2 operands per operator
+                operand1 = stack.pop()
+                operand2 = stack.pop()
+                stack.append(operand1 or operand2)
+
+        # 'and' operator is implied for remaining stack elements
+        avail = True
+        while stack:
+            avail &= stack.pop()
+        return avail
+
+    @api.multi
+    def values_available(self, attr_val_ids, sel_val_ids):
+        """Determines whether the attr_values from the product_template
+        are available for selection given the configuration ids and the
+        dependencies set on the product template
+
+        :param attr_val_ids: list of attribute value ids to check for
+                             availability
+        :param sel_val_ids: list of attribute value ids already selected
+
+        :returns: list of available attribute values
+        """
+
+        avail_val_ids = []
+        for attr_val_id in attr_val_ids:
+
+            config_lines = self.config_line_ids.filtered(
+                lambda l: attr_val_id in l.value_ids.ids
+            )
+            domains = config_lines.mapped('domain_id').compute_domain()
+
+            avail = self.validate_domains_against_sels(domains, sel_val_ids)
+            if avail:
+                avail_val_ids.append(attr_val_id)
+
+        return avail_val_ids
 
     @api.multi
     def validate_configuration(self, value_ids, custom_vals=None, final=True):
@@ -392,20 +456,23 @@ class ProductTemplate(models.Model):
         # Check if required values are missing for final configuration
         if custom_vals is None:
             custom_vals = {}
-        if final:
-            for line in self.attribute_line_ids:
+
+        for line in self.attribute_line_ids:
+            # Validate custom values
+            attr = line.attribute_id
+            if attr.id in custom_vals:
+                attr.validate_custom_val(custom_vals[attr.id])
+            if final:
                 common_vals = set(value_ids) & set(line.value_ids.ids)
-                custom_val = custom_vals.get(line.attribute_id.id)
+                custom_val = custom_vals.get(attr.id)
                 if line.required and not common_vals and not custom_val:
                     # TODO: Verify custom value type to be correct
                     return False
 
         # Check if all all the values passed are not restricted
-        for val in value_ids:
-            available = self.value_available(
-                val, [v for v in value_ids if v != val])
-            if not available:
-                return False
+        avail_val_ids = self.values_available(value_ids, value_ids)
+        if set(value_ids) - set(avail_val_ids):
+            return False
 
         # Check if custom values are allowed
         custom_attr_ids = self.attribute_line_ids.filtered(
@@ -441,10 +508,10 @@ class ProductTemplate(models.Model):
     def create_variant_ids(self):
         """ Prevent configurable products from creating variants as these serve
             only as a template for the product configurator"""
-        for product in self:
-            if self.config_ok:
-                return None
-            return super(ProductTemplate, self).create_variant_ids()
+        templates = self.filtered(lambda t: not t.config_ok)
+        if not templates:
+            return None
+        return super(ProductTemplate, templates).create_variant_ids()
 
     @api.multi
     def unlink(self):
@@ -468,6 +535,36 @@ class ProductProduct(models.Model):
             'int': int
         }
         return conversions
+
+    @api.multi
+    @api.constrains('attribute_value_ids')
+    def _check_duplicate_product(self):
+        if not self.config_ok:
+            return None
+
+        # At the moment, I don't have enough confidence with my understanding
+        # of binary attributes, so will leave these as not matching...
+        # In theory, they should just work, if they are set to "non search"
+        # in custom field def!
+        # TODO: Check the logic with binary attributes
+        if self.value_custom_ids.filtered(lambda cv: cv.attachment_ids):
+            pass
+        else:
+            custom_values = {
+                cv.attribute_id.id: cv.value
+                for cv in self.value_custom_ids
+                }
+
+            duplicates = self.product_tmpl_id.search_variant(
+                self.attribute_value_ids.ids,
+                custom_values=custom_values
+                ).filtered(lambda p: p.id != self.id)
+
+            if duplicates:
+                raise ValidationError(
+                    _("Configurable Products cannot have duplicates "
+                      "(identical attribute values)")
+                )
 
     @api.multi
     def _compute_product_price_extra(self):

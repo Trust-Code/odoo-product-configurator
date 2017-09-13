@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-###########################################################
-# © 2016 Pledra (<http://www.pledra.com/>)                #
-# Author: Paul Cătinean                                   #
-# Proprietary license, usage and/or distribution strictly #
-# prohibited in absence of signed license agreement       #
-###########################################################
 
 from odoo.tests.common import TransactionCase
 
@@ -107,4 +101,4 @@ class ConfigurationRules(TransactionCase):
         self.assertFalse(validation, "Custom value accepted for fixed "
                          "attribute color")
 
-    # Test configuration with disallowed custom type value
+    # TODO: Test configuration with disallowed custom type value
