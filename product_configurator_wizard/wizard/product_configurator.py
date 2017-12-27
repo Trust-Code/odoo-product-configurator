@@ -119,11 +119,13 @@ class ProductConfigurator(models.TransientModel):
 
         :returns vals: Dictionary passed to {'value': vals} by onchange method
         """
+        import ipdb
+        ipdb.set_trace()
         vals = {}
 
-        dynamic_fields = {k: v for k, v in dynamic_fields.iteritems() if v}
+        dynamic_fields = {k: v for k, v in dynamic_fields.items() if v}
 
-        for k, v in dynamic_fields.iteritems():
+        for k, v in dynamic_fields.items():
             if not v:
                 continue
             available_val_ids = domains[k][0][2]
@@ -167,12 +169,12 @@ class ProductConfigurator(models.TransientModel):
             cfg_step = self.env['product.config.step.line']
 
         dynamic_fields = {
-            k: v for k, v in values.iteritems() if k.startswith(
+            k: v for k, v in values.items() if k.startswith(
                 self.field_prefix)
         }
 
         # Get the unstored values from the client view
-        for k, v in dynamic_fields.iteritems():
+        for k, v in dynamic_fields.items():
             attr_id = int(k.split(self.field_prefix)[1])
             line_attributes = cfg_step.attribute_line_ids.mapped(
                 'attribute_id')
@@ -239,6 +241,8 @@ class ProductConfigurator(models.TransientModel):
     def fields_get(self, allfields=None, attributes=None):
         """ Artificially inject fields which are dynamically created using the
         attribute_ids on the product.template as reference"""
+        import ipdb
+        ipdb.set_trace()
         res = super(ProductConfigurator, self).fields_get(
             allfields=allfields,
             attributes=attributes
@@ -343,6 +347,8 @@ class ProductConfigurator(models.TransientModel):
                         toolbar=False, submenu=False):
         """ Generate view dynamically using attributes stored on the
         product.template"""
+        import ipdb
+        ipdb.set_trace()
         res = super(ProductConfigurator, self).fields_view_get(
             view_id=view_id, view_type=view_type,
             toolbar=toolbar, submenu=submenu
@@ -358,7 +364,7 @@ class ProductConfigurator(models.TransientModel):
         # Get updated fields including the dynamic ones
         fields = self.fields_get()
         dynamic_fields = {
-            k: v for k, v in fields.iteritems() if k.startswith(
+            k: v for k, v in fields.items() if k.startswith(
                 self.field_prefix) or k.startswith(self.custom_field_prefix)
         }
 
@@ -463,7 +469,7 @@ class ProductConfigurator(models.TransientModel):
                         val_ids = val_ids - domain_line.value_ids
                         attr_depends[attr_field] |= set(val_ids.ids)
 
-                for dependee_field, val_ids in attr_depends.iteritems():
+                for dependee_field, val_ids in attr_depends.items():
                     if not val_ids:
                         continue
                     attrs['readonly'].append(
@@ -556,6 +562,8 @@ class ProductConfigurator(models.TransientModel):
     def read(self, fields=None, load='_classic_read'):
         """Remove dynamic fields from the fields list and update the
         returned values with the dynamic data stored in value_ids"""
+        import ipdb
+        ipdb.set_trace()
         attr_vals = [f for f in fields if f.startswith(self.field_prefix)]
         custom_attr_vals = [
             f for f in fields if f.startswith(self.custom_field_prefix)
@@ -696,7 +704,6 @@ class ProductConfigurator(models.TransientModel):
         More importantly it sets metadata on the context
         variable so the fields_get and fields_view_get methods can generate the
         appropriate dynamic content"""
-
         wizard_action = {
             'type': 'ir.actions.act_window',
             'res_model': self._name,
@@ -732,7 +739,8 @@ class ProductConfigurator(models.TransientModel):
 
         adjacent_steps = self.product_tmpl_id.get_adjacent_steps(
             self.value_ids.ids, active_cfg_line_id)
-
+        import ipdb
+        ipdb.set_trace()
         next_step = adjacent_steps.get('next_step')
 
         if next_step:

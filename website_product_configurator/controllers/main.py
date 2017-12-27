@@ -6,7 +6,7 @@ from werkzeug import secure_filename
 
 from odoo import http
 from odoo.http import request
-from odoo.addons.website.models.website import slug
+from odoo.addons.http_routing.models.ir_http import slug
 from odoo.addons.website_sale.controllers import main
 
 

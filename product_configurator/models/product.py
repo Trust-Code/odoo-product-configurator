@@ -168,6 +168,10 @@ class ProductTemplate(models.Model):
         :param pricelist_id: id of pricelist to use for price computation
         :param formatLang: boolean for formatting price dictionary
         :returns: dictionary of prices per attribute and total price"""
+        import ipdb
+        ipdb.set_trace()
+        if not self:
+            raise ValidationError(_('Please, select a configurable template.'))
         self.ensure_one()
         if custom_values is None:
             custom_values = {}
@@ -194,7 +198,7 @@ class ProductTemplate(models.Model):
 
         prices = {
             'vals': [
-                ('Base', self.name, total_excluded)
+                (u'Base', self.name, total_excluded)
             ],
             'total': total_included,
             'taxes': total_included - total_excluded,
@@ -253,7 +257,7 @@ class ProductTemplate(models.Model):
             lambda p:
             len(p.attribute_value_ids) != len(value_ids) or
             len(p.value_custom_ids) != len(custom_values)
-            )
+        )
         products -= more_attrs
         return products
 
@@ -553,12 +557,12 @@ class ProductProduct(models.Model):
             custom_values = {
                 cv.attribute_id.id: cv.value
                 for cv in self.value_custom_ids
-                }
+            }
 
             duplicates = self.product_tmpl_id.search_variant(
                 self.attribute_value_ids.ids,
                 custom_values=custom_values
-                ).filtered(lambda p: p.id != self.id)
+            ).filtered(lambda p: p.id != self.id)
 
             if duplicates:
                 raise ValidationError(

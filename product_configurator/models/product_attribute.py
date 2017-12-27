@@ -110,6 +110,7 @@ class ProductAttribute(models.Model):
         """
         self.ensure_one()
         if self.custom_type in ('int', 'float'):
+            # Questionable, method can be reduced
             minv = self.min_val
             maxv = self.max_val
             val = literal_eval(val)
