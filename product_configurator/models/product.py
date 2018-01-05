@@ -168,8 +168,6 @@ class ProductTemplate(models.Model):
         :param pricelist_id: id of pricelist to use for price computation
         :param formatLang: boolean for formatting price dictionary
         :returns: dictionary of prices per attribute and total price"""
-        import ipdb
-        ipdb.set_trace()
         if not self:
             raise ValidationError(_('Please, select a configurable template.'))
         self.ensure_one()

@@ -119,8 +119,6 @@ class ProductConfigurator(models.TransientModel):
 
         :returns vals: Dictionary passed to {'value': vals} by onchange method
         """
-        import ipdb
-        ipdb.set_trace()
         vals = {}
 
         dynamic_fields = {k: v for k, v in dynamic_fields.items() if v}
@@ -241,8 +239,6 @@ class ProductConfigurator(models.TransientModel):
     def fields_get(self, allfields=None, attributes=None):
         """ Artificially inject fields which are dynamically created using the
         attribute_ids on the product.template as reference"""
-        import ipdb
-        ipdb.set_trace()
         res = super(ProductConfigurator, self).fields_get(
             allfields=allfields,
             attributes=attributes
@@ -347,8 +343,6 @@ class ProductConfigurator(models.TransientModel):
                         toolbar=False, submenu=False):
         """ Generate view dynamically using attributes stored on the
         product.template"""
-        import ipdb
-        ipdb.set_trace()
         res = super(ProductConfigurator, self).fields_view_get(
             view_id=view_id, view_type=view_type,
             toolbar=toolbar, submenu=submenu
@@ -562,8 +556,6 @@ class ProductConfigurator(models.TransientModel):
     def read(self, fields=None, load='_classic_read'):
         """Remove dynamic fields from the fields list and update the
         returned values with the dynamic data stored in value_ids"""
-        import ipdb
-        ipdb.set_trace()
         attr_vals = [f for f in fields if f.startswith(self.field_prefix)]
         custom_attr_vals = [
             f for f in fields if f.startswith(self.custom_field_prefix)
@@ -594,9 +586,6 @@ class ProductConfigurator(models.TransientModel):
             vals = attr_line.value_ids.filtered(
                 lambda v: v in self.value_ids)
 
-            if not attr_line.custom and not vals:
-                continue
-
             if attr_line.custom and custom_vals:
                 dynamic_vals.update({
                     field_name: custom_val.id,
@@ -613,7 +602,6 @@ class ProductConfigurator(models.TransientModel):
                 dynamic_vals = {field_name: [[6, 0, vals.ids]]}
             else:
                 try:
-                    vals.ensure_one()
                     dynamic_vals = {field_name: vals.id}
                 except:
                     continue
@@ -739,8 +727,6 @@ class ProductConfigurator(models.TransientModel):
 
         adjacent_steps = self.product_tmpl_id.get_adjacent_steps(
             self.value_ids.ids, active_cfg_line_id)
-        import ipdb
-        ipdb.set_trace()
         next_step = adjacent_steps.get('next_step')
 
         if next_step:
