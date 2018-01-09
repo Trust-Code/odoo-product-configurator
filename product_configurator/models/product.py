@@ -237,7 +237,7 @@ class ProductTemplate(models.Model):
             ('custom_type', 'not in', attr_obj._get_nosearch_fields())
         ])
 
-        for attr_id, value in custom_values.iteritems():
+        for attr_id, value in custom_values.items():
             if attr_id not in attr_search.ids:
                 domain.append(
                     ('value_custom_ids.attribute_id', '!=', int(attr_id)))
@@ -272,9 +272,10 @@ class ProductTemplate(models.Model):
         # TODO: Also consider custom values for image change
         img_obj = self
         max_matches = 0
-        value_ids = self.flatten_val_ids(value_ids)
+
+        values = self.flatten_val_ids(value_ids)
         for line in self.config_image_ids:
-            matches = len(set(line.value_ids.ids) & set(value_ids))
+            matches = len(set(line.value_ids.ids) & set(values))
             if matches > max_matches:
                 img_obj = line
                 max_matches = matches
@@ -294,7 +295,7 @@ class ProductTemplate(models.Model):
 
         custom_lines = []
 
-        for key, val in custom_values.iteritems():
+        for key, val in custom_values.items():
             custom_vals = {'attribute_id': key}
             # TODO: Is this extra check neccesairy as we already make
             # the check in validate_configuration?

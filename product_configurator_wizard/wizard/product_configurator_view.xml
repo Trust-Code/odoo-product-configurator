@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <form string="Product Configurator">
                 <header>
-                    <field name="state" widget="statusbar" clickable="True"/>
+                    <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
                     <group col="4">
@@ -29,7 +29,7 @@
                 </sheet>
                 <footer>
                     <field name="value_ids" invisible="1"/>
-                    <button type="object" name="action_previous_step" attrs="{'invisible': [('state','=','select')]}" string="Back" special="no_save"/>
+                    <button type="object" name="action_previous_step" attrs="{'invisible': [('state','=','select')]}" string="Back"/>
                     <button type="object" name="action_next_step" class="oe_highlight" string="Next"/>
                 </footer>
             </form>

@@ -26,6 +26,7 @@ class ProductConfigurator(models.TransientModel):
     # depending on complexity and AFK time we must increase the lifespan
     # of this TransientModel life
 
+    # @api.onchange('')
     @api.multi
     @api.depends('product_tmpl_id', 'value_ids', 'custom_value_ids')
     def _compute_cfg_image(self):
@@ -122,7 +123,6 @@ class ProductConfigurator(models.TransientModel):
         vals = {}
 
         dynamic_fields = {k: v for k, v in dynamic_fields.items() if v}
-
         for k, v in dynamic_fields.items():
             if not v:
                 continue
@@ -135,12 +135,22 @@ class ProductConfigurator(models.TransientModel):
                 dynamic_fields.update({k: None})
                 vals[k] = None
 
+        dynamic_values = self.dict_values_to_list(dynamic_fields.values())
+        values_ids = self.value_ids.ids + self.custom_value_ids.ids\
+            + dynamic_values
+
         product_img = self.product_tmpl_id.get_config_image_obj(
-            dynamic_fields.values())
+            values_ids)
 
         vals.update(product_img=product_img.image)
 
         return vals
+
+    def dict_values_to_list(self, dict_value_list):
+        value_list = []
+        for value in dict_value_list:
+            value_list.append(value)
+        return value_list
 
     @api.multi
     def onchange(self, values, field_name, field_onchange):
@@ -556,6 +566,7 @@ class ProductConfigurator(models.TransientModel):
     def read(self, fields=None, load='_classic_read'):
         """Remove dynamic fields from the fields list and update the
         returned values with the dynamic data stored in value_ids"""
+
         attr_vals = [f for f in fields if f.startswith(self.field_prefix)]
         custom_attr_vals = [
             f for f in fields if f.startswith(self.custom_field_prefix)
@@ -585,7 +596,6 @@ class ProductConfigurator(models.TransientModel):
                 lambda x: x.attribute_id.id == attr_id)
             vals = attr_line.value_ids.filtered(
                 lambda v: v in self.value_ids)
-
             if attr_line.custom and custom_vals:
                 dynamic_vals.update({
                     field_name: custom_val.id,
@@ -599,7 +609,7 @@ class ProductConfigurator(models.TransientModel):
                         custom_field_name: custom_vals.eval()
                     })
             elif attr_line.multi:
-                dynamic_vals = {field_name: [[6, 0, vals.ids]]}
+                dynamic_vals = {field_name: vals.ids}
             else:
                 try:
                     dynamic_vals = {field_name: vals.id}
@@ -628,7 +638,6 @@ class ProductConfigurator(models.TransientModel):
 
             if field_name not in vals and custom_field_name not in vals:
                 continue
-
             # Add attribute values from the client except custom attribute
             # If a custom value is being written, but field name is not in
             #   the write dictionary, then it must be a custom value!
@@ -672,7 +681,6 @@ class ProductConfigurator(models.TransientModel):
                 del vals[field_name]
             if custom_field_name in vals:
                 del vals[custom_field_name]
-
         self.config_session.update_config(attr_val_dict, custom_val_dict)
         res = super(ProductConfigurator, self).write(vals)
         return res
@@ -741,7 +749,6 @@ class ProductConfigurator(models.TransientModel):
         """Proceeds to the next step of the configuration process. This usually
     implies the next configuration step (if any) defined via the
     config_step_line_ids on the product.template."""
-
         wizard_action = {
             'type': 'ir.actions.act_window',
             'res_model': self._name,
