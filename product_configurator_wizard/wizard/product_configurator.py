@@ -822,17 +822,21 @@ class ProductConfigurator(models.TransientModel):
                   'required steps and fields.')
             )
 
-        so = self.env['sale.order'].browse(self.env.context.get('active_id'))
+        model = self.env.context['active_model']
+        so = self.env[model].browse(self.env.context.get('active_id'))
 
         line_vals = {'product_id': variant.id}
         line_vals.update(self._extra_line_values(
-            self.order_line_id.order_id or so, variant, new=True)
+            so, variant, new=True)
         )
 
-        if self.order_line_id:
-            self.order_line_id.write(line_vals)
-        else:
-            so.write({'order_line': [(0, 0, line_vals)]})
+        if model == 'sale.order':
+            if self.order_line_id:
+                self.order_line_id.write(line_vals)
+            else:
+                so.write({'order_line': [(0, 0, line_vals)]})
+        elif model == 'stock.picking':
+            so.write({'move_lines': [(0, 0, line_vals)]})
 
         self.unlink()
         return

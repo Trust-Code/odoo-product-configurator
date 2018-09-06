@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="stock_picking_form_config" model="ir.ui.view">
+        <field name="name">stock.picking.form.config</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='move_lines']" position="before">
+                <button name="%(product_configurator_wizard.action_wizard_product_configurator)s"
+                        states="draft,sent"
+                        class="oe_highlight"
+                        type="action"
+                        style="margin-top: 15px;margin-bottom: 10px;"
+                        string="Configure Product"
+                        groups="product_configurator.group_product_configurator"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
