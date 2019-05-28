@@ -579,7 +579,7 @@ class WebsiteProductConfig(http.Controller):
         """Computes classes for attribute elements in frontend for the purpose
            of client-side validation and config image update
 
-           :param attr_line: product.attribute.line object
+           :param attr_line: product.template.attribute.line object
            :param attr_value: product.attribute.value object
            :returns: string of classes to be added on the frontend element
         """
