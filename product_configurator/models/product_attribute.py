@@ -132,7 +132,7 @@ class ProductAttribute(models.Model):
 
 
 class ProductAttributeLine(models.Model):
-    _inherit = 'product.attribute.line'
+    _inherit = 'product.template.attribute.line'
 
     @api.onchange('attribute_id')
     def onchange_attribute(self):

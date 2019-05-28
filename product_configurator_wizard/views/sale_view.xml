@@ -22,7 +22,7 @@
                         class="oe_highlight"
                         type="action"
                         style="margin-top: 15px;margin-bottom: 10px;"
-                        string="Configure Product"
+                        string="Config. Product"
                         groups="product_configurator.group_product_configurator"/>
             </xpath>
 
